@@ -52,21 +52,11 @@ with Funky() as client:
     )
     client.sessions.wait_until_ready(session.id, timeout=180)
 
-    queued = client.sessions.send_message(
+    result = client.sessions.run_turn(
         session.id,
         content="Inspect the repository and identify the root cause.",
     )
-
-    with client.sessions.stream_events(session.id, after_seq=queued.seq) as events:
-        for event in events:
-            if event.type == "assistant_message":
-                for block in event.payload.content:
-                    if block.type == "text":
-                        print(block.text)
-            elif event.type == "turn_completed":
-                break
-            elif event.type == "turn_failed":
-                raise RuntimeError(event.payload.message)
+    print(result.output_text)
 ```
 
 Create agents and environments during application setup and retain their IDs. A new
@@ -75,20 +65,26 @@ session is appropriate for each independent run or durable conversation.
 ## Async client
 
 `AsyncFunky` exposes the same resources and method names. Network operations are
-awaitable, pagination uses `async for`, and streams use `async with`:
+awaitable and pagination uses `async for`. `run_turn()` manages the event stream
+internally, so the common request-response path only needs the client context:
 
 ```python
 from funky import AsyncFunky
 
 
-async def show_events(session_id: str) -> None:
+async def ask_agent(session_id: str) -> None:
     async with AsyncFunky() as client:
-        async with client.sessions.stream_events(session_id) as events:
-            async for event in events:
-                print(event.type, event.seq)
-                if event.type in {"turn_completed", "turn_failed"}:
-                    break
+        result = await client.sessions.run_turn(
+            session_id,
+            content="Summarize the repository.",
+        )
+        print(result.output_text)
 ```
+
+`run_turn()` returns a `RunTurnResult` containing `output_text`, the message
+submission, all events observed during the turn, and the terminal event. It raises
+`TurnFailedError` when the agent reports a failed turn. Use `stream_events()` directly
+when an application needs to process assistant messages or tool results in real time.
 
 ## Resource APIs
 
@@ -119,6 +115,7 @@ client.sessions.iter(...)
 client.sessions.retrieve(session_id)
 client.sessions.archive(session_id)
 client.sessions.send_message(session_id, content=...)
+client.sessions.run_turn(session_id, content=...)
 client.sessions.list_events(session_id, ...)
 client.sessions.iter_events(session_id, ...)
 client.sessions.stream_events(session_id, ...)
@@ -146,32 +143,6 @@ for event in client.sessions.iter_events(session_id, after_seq=0):
     print(event.seq, event.type)
 ```
 
-## Errors and retries
-
-All SDK errors inherit from `FunkyError`:
-
-```text
-FunkyError
-├── APIConnectionError
-│   └── APITimeoutError
-└── APIStatusError
-    ├── BadRequestError
-    ├── AuthenticationError
-    ├── PermissionDeniedError
-    ├── NotFoundError
-    ├── ConflictError
-    ├── RateLimitError
-    └── InternalServerError
-```
-
-Status errors retain `status_code`, `error_type`, `code`, `request_id`, response
-`headers`, and a safely redacted `body`.
-
-The SDK retries reads, archive operations, and creates with their stable
-client-generated UUID. It does not automatically retry ambiguous agent/environment
-updates or message submissions. Event streams resume from the last yielded sequence,
-ignore heartbeat comments, and defensively discard replayed duplicates.
-
 ## Client configuration
 
 ```python
@@ -191,13 +162,3 @@ client = Funky(
 
 A supplied HTTP client remains owned by the caller and is not closed by `Funky`.
 The SDK never includes the API key in its representation or exceptions.
-
-## Development
-
-```bash
-uv sync --dev
-uv run pytest
-uvx ruff check .
-uvx ruff format --check .
-uv build
-```
