@@ -11,6 +11,7 @@ from ._exceptions import (
     NotFoundError,
     PermissionDeniedError,
     RateLimitError,
+    TurnFailedError,
 )
 from ._models import (
     Agent,
@@ -29,6 +30,7 @@ from ._models import (
     ModelConfig,
     Page,
     RuntimeConfig,
+    RunTurnResult,
     SendMessageResponse,
     Session,
     SessionEvent,
@@ -79,6 +81,7 @@ __all__ = [
     "PermissionDeniedError",
     "RateLimitError",
     "RuntimeConfig",
+    "RunTurnResult",
     "SendMessageResponse",
     "Session",
     "SessionEvent",
@@ -88,6 +91,7 @@ __all__ = [
     "ToolResultPayload",
     "TurnCompletedEvent",
     "TurnFailedEvent",
+    "TurnFailedError",
     "TurnFailedPayload",
     "UnknownContentBlock",
     "UnknownSessionEvent",

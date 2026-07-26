@@ -369,6 +369,14 @@ class UnknownSessionEvent(SessionEvent):
     raw: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(slots=True)
+class RunTurnResult:
+    output_text: str
+    submission: SendMessageResponse
+    events: list[SessionEvent]
+    terminal_event: TurnCompletedEvent
+
+
 def session_event_from_dict(value: Mapping[str, Any]) -> SessionEvent:
     event_type = str(value.get("type", "unknown"))
     raw_payload = value.get("payload")

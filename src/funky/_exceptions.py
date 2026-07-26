@@ -16,6 +16,24 @@ class APITimeoutError(APIConnectionError):
     """A request or local wait operation timed out."""
 
 
+class TurnFailedError(FunkyError):
+    """An agent turn reported a failure event."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_class: str,
+        session_id: str,
+        seq: int,
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        self.error_class = error_class
+        self.session_id = session_id
+        self.seq = seq
+
+
 class APIStatusError(FunkyError):
     """The Funky API returned an unsuccessful HTTP status."""
 

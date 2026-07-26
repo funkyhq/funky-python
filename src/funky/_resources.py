@@ -7,20 +7,25 @@ from collections.abc import AsyncIterator, Iterator, Mapping
 from typing import Any
 from urllib.parse import quote
 
-from ._exceptions import APITimeoutError, FunkyError
+from ._exceptions import APITimeoutError, FunkyError, TurnFailedError
 from ._models import (
     Agent,
     AgentReference,
     AgentVersion,
+    AssistantMessageEvent,
     Environment,
     EventPage,
     LimitedNetwork,
     ModelConfig,
     Page,
     RuntimeConfig,
+    RunTurnResult,
     SendMessageResponse,
     Session,
     SessionEvent,
+    TextContentBlock,
+    TurnCompletedEvent,
+    TurnFailedEvent,
     UnrestrictedNetwork,
     VersionPage,
     session_event_from_dict,
@@ -46,6 +51,37 @@ def _params(**values: Any) -> dict[str, Any]:
 
 def _body(**values: Any) -> dict[str, Any]:
     return {key: to_wire(value) for key, value in values.items() if value is not _UNSET}
+
+
+def _run_turn_result(
+    submission: SendMessageResponse,
+    events: list[SessionEvent],
+    terminal_event: TurnCompletedEvent,
+) -> RunTurnResult:
+    messages: list[str] = []
+    for event in events:
+        if not isinstance(event, AssistantMessageEvent):
+            continue
+        text = "".join(
+            block.text for block in event.payload.content if isinstance(block, TextContentBlock)
+        )
+        if text:
+            messages.append(text)
+    return RunTurnResult(
+        output_text="\n".join(messages),
+        submission=submission,
+        events=events,
+        terminal_event=terminal_event,
+    )
+
+
+def _raise_turn_failed(event: TurnFailedEvent) -> None:
+    raise TurnFailedError(
+        event.payload.message,
+        error_class=event.payload.error_class,
+        session_id=event.session_id,
+        seq=event.seq,
+    )
 
 
 class Agents:
@@ -338,6 +374,19 @@ class Sessions:
             json={"content": content},
         )
         return SendMessageResponse.from_dict(data)
+
+    def run_turn(self, session_id: str, *, content: str) -> RunTurnResult:
+        """Send a message and collect events until the turn finishes."""
+        submission = self.send_message(session_id, content=content)
+        events: list[SessionEvent] = []
+        with self.stream_events(session_id, after_seq=submission.seq) as stream:
+            for event in stream:
+                events.append(event)
+                if isinstance(event, TurnFailedEvent):
+                    _raise_turn_failed(event)
+                if isinstance(event, TurnCompletedEvent):
+                    return _run_turn_result(submission, events, event)
+        raise FunkyError(f"Event stream for session {session_id} ended before the turn completed")
 
     def list_events(self, session_id: str, *, after_seq: int = 0, limit: int = 100) -> EventPage:
         data = self._transport.request(
@@ -717,6 +766,19 @@ class AsyncSessions:
             json={"content": content},
         )
         return SendMessageResponse.from_dict(data)
+
+    async def run_turn(self, session_id: str, *, content: str) -> RunTurnResult:
+        """Send a message and collect events until the turn finishes."""
+        submission = await self.send_message(session_id, content=content)
+        events: list[SessionEvent] = []
+        async with self.stream_events(session_id, after_seq=submission.seq) as stream:
+            async for event in stream:
+                events.append(event)
+                if isinstance(event, TurnFailedEvent):
+                    _raise_turn_failed(event)
+                if isinstance(event, TurnCompletedEvent):
+                    return _run_turn_result(submission, events, event)
+        raise FunkyError(f"Event stream for session {session_id} ended before the turn completed")
 
     async def list_events(
         self, session_id: str, *, after_seq: int = 0, limit: int = 100
