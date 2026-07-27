@@ -1,6 +1,6 @@
 [project]
 name = "funky-sdk"
-version = "0.1.0"
+version = "0.3.0"
 description = "The official Python SDK for Funky"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -21,6 +21,8 @@ dependencies = ["httpx>=0.27,<1"]
 
 [project.urls]
 Homepage = "https://funky.dev"
+Repository = "https://github.com/funkyhq/funky-python"
+Issues = "https://github.com/funkyhq/funky-python/issues"
 
 [build-system]
 requires = ["hatchling"]
