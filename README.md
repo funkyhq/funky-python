@@ -152,7 +152,7 @@ from funky import Funky
 http_client = httpx.Client(transport=my_transport)
 client = Funky(
     api_key="fk_...",  # defaults from FUNKY_API_KEY
-    base_url="https://api.funky.dev",
+    base_url="https://agents.funky.dev",
     timeout=30,
     max_retries=2,
     user_agent="my-service/1.0",

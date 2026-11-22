@@ -16,7 +16,7 @@ from ._resources import (
 from ._transport import AsyncTransport, SyncTransport
 from ._version import __version__
 
-DEFAULT_BASE_URL = "https://api.funky.dev"
+DEFAULT_BASE_URL = "https://agents.funky.dev"
 
 
 def _resolve_api_key(api_key: str | None) -> str:
